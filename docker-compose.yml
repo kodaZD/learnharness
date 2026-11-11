@@ -12,6 +12,7 @@ services:
       PORT: 3000
       LH_DATA_DIR: /var/lib/learnharness/data
       LH_AUTH_FILE: /var/lib/learnharness/auth.json
+      LH_ALLOWED_HOSTS: ${LH_ALLOWED_HOSTS:-hhf-server.tail29578a.ts.net}
       CUSTOM_OPENAI_API_KEY: ${SUNSILK_API_KEY:?Set SUNSILK_API_KEY in .env}
       SEARCH_API_BEARER_TOKEN: ${SEARCH_API_BEARER_TOKEN:?Set SEARCH_API_BEARER_TOKEN in .env}
       SEARCHAPI_ENDPOINT: http://searchapi:8000
