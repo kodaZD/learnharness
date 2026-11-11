@@ -77,7 +77,7 @@ describe("sanitizeUserSettings", () => {
 				},
 				tools: { research: false, quiz: true },
 				prompts: { "system-prompt.md": true, "teacher/20-teaching.md": false },
-				search: { engine: "brave" },
+				search: { engine: "searchapi" },
 			},
 			models: {
 				strong: { model: { provider: "zai", id: "glm-5.3-flash" }, thinkingLevel: "low" },
@@ -211,12 +211,10 @@ describe("sanitizeUserSettings", () => {
 	it("search engine pin survives; unknown engine ids drop (auto-detect resumes) — search wave, 2026-09-20", () => {
 		const good = sanitizeUserSettings({ version: 1, agent: { search: { engine: "tavily" } } });
 		assert.deepEqual(good?.agent?.search, { engine: "tavily" });
-		const exa = sanitizeUserSettings({ version: 1, agent: { search: { engine: "exa" } } });
-		assert.deepEqual(exa?.agent?.search, { engine: "exa" });
-		const fc = sanitizeUserSettings({ version: 1, agent: { search: { engine: "firecrawl" } } });
-		assert.deepEqual(fc?.agent?.search, { engine: "firecrawl" });
-		const ollama = sanitizeUserSettings({ version: 1, agent: { search: { engine: "ollama" } } });
-		assert.deepEqual(ollama?.agent?.search, { engine: "ollama" });
+		const gateway = sanitizeUserSettings({ version: 1, agent: { search: { engine: "searchapi" } } });
+		assert.deepEqual(gateway?.agent?.search, { engine: "searchapi" });
+		const retired = sanitizeUserSettings({ version: 1, agent: { search: { engine: "exa" } } });
+		assert.equal(retired?.agent?.search, undefined);
 		const bad = sanitizeUserSettings({ version: 1, agent: { search: { engine: "google" } } });
 		assert.equal(bad?.agent?.search, undefined);
 		const notObject = sanitizeUserSettings({ version: 1, agent: { search: "tavily" } });

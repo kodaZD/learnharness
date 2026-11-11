@@ -29,7 +29,7 @@ describe("web_search on the injected port (web.ts)", () => {
 		assert.ok(web_search, "web_search is still exposed without a provider");
 		const out = await web_search!.execute!("c1", { query: "anything" });
 		const missing = "web_search is not available: no search engine is configured. " +
-			"Set a Tavily, Brave, Exa, Firecrawl, or Ollama search API key in settings. Report in your brief that web search is unavailable.";
+			"Configure SearchAPI or set a Tavily search API key. Report in your brief that web search is unavailable.";
 		assert.equal(out.details, missing);
 		assert.deepEqual(out.content, [{ type: "text", text: missing }]);
 		assert.notEqual(out.isError, true, "missing keys remain ordinary recoverable text, not a native error");
@@ -52,7 +52,7 @@ describe("web_search on the injected port (web.ts)", () => {
 
 	it("provider errors surface as error strings, never thrown", async () => {
 		const provider: SearchProvider = {
-			id: "brave",
+			id: "tavily",
 			async search() {
 				throw new Error("Brave search API 429: rate limited");
 			},

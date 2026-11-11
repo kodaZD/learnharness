@@ -5,12 +5,10 @@
  * agent-layer tool both read.
  *
  * Owner decisions (2026-09-20) baked in:
- *  - NO default engine: an engine is live iff its key is present (auth
- *    store or env — env wins, keyed via server/keys.ts keyValue).
- *  - Setting a key is ALL the user does — auto-detection: explicit
- *    agent.search.engine pins the preference (when several keys are
- *    present the order is Tavily → Brave → Exa → Firecrawl → Ollama);
- *    without a pin, the first keyed engine wins.
+ *  - SearchAPI is deployment-keyed through process.env and is preferred;
+ *    Tavily remains a user-managed direct fallback.
+ *  - Explicit agent.search.engine pins the preference; without a pin the
+ *    first connected engine wins in SearchAPI → Tavily order.
  *  - An explicit choice does NOT silently fall back to another engine:
  *    engine pinned but its key missing = honestly unavailable (reason
  *    says so) — no guessing what the user meant.
@@ -25,6 +23,38 @@ import { effectiveSettings } from "./stores.ts";
 
 /** The wire-callable shape the adapters close over (tests inject a stub). */
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
+
+const SEARCH_API_ENDPOINT = process.env.SEARCHAPI_ENDPOINT ?? "http://searchapi:8000";
+
+/** The shared gateway owns SearXNG-first search and Brave fallback. The bearer
+ * token is deployment configuration and is never exposed through /api/keys. */
+export function searchApiProvider(token: string, endpoint = SEARCH_API_ENDPOINT, fetchFn: FetchLike = fetch): SearchProvider {
+	return {
+		id: "searchapi",
+		async search(query: string, count: number): Promise<SearchHit[]> {
+			const url = new URL("/v1/search", endpoint);
+			url.searchParams.set("q", query);
+			url.searchParams.set("count", String(Math.min(10, Math.max(1, Math.floor(count)))));
+			url.searchParams.set("include_content", "true");
+			url.searchParams.set("content_count", "3");
+			url.searchParams.set("content_max_chars", "4000");
+			const resp = await fetchFn(url.toString(), {
+				headers: { accept: "application/json", authorization: `Bearer ${token}` },
+				signal: AbortSignal.timeout(30_000),
+			});
+			if (!resp.ok) throw new Error(`SearchAPI search API ${resp.status}`);
+			const data = await searchJson(resp, "SearchAPI");
+			if (!data || typeof data !== "object" || !Array.isArray((data as { results?: unknown }).results)) {
+				throw new Error("SearchAPI search API returned an invalid response");
+			}
+			return (data as { results: unknown[] }).results.flatMap((result): SearchHit[] => {
+				if (!result || typeof result !== "object") return [];
+				const row = result as { title?: unknown; url?: unknown; snippet?: unknown; content?: unknown };
+				return searchHit(row.title, row.url, row.snippet ?? row.content);
+			});
+		},
+	};
+}
 
 /** Tavily: POST https://api.tavily.com/search — Bearer auth in the
  *  Authorization header (the current documented scheme; the legacy
@@ -72,42 +102,6 @@ export function tavilyProvider(apiKey: string, fetchFn: FetchLike = fetch): Sear
 	};
 }
 
-/** Brave: GET https://api.search.brave.com/res/v1/web/search with the
- *  key in the X-Subscription-Token header. VERIFIED against Brave's
- *  dashboard docs, 2026-09-20: count max 20; response
- *  {web: {results: [{title, url, description, …}]}}. */
-export function braveProvider(apiKey: string, fetchFn: FetchLike = fetch): SearchProvider {
-	return {
-		id: "brave",
-		async search(query: string, count: number): Promise<SearchHit[]> {
-			const url = new URL("https://api.search.brave.com/res/v1/web/search");
-			url.searchParams.set("q", query);
-			url.searchParams.set("count", String(Math.min(count, 20)));
-			const resp = await fetchFn(url.toString(), {
-				headers: {
-					accept: "application/json",
-					"x-subscription-token": apiKey,
-				},
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (!resp.ok) {
-				const body = await resp.text();
-				throw new Error(`Brave search API ${resp.status}: ${body.slice(0, 200)}`);
-			}
-			const data = (await resp.json()) as {
-				web?: { results?: Array<{ title?: string; url?: string; description?: string }> };
-			};
-			return (data.web?.results ?? [])
-				.filter((r) => typeof r.url === "string" && r.url)
-				.map((r) => ({
-					title: r.title ?? r.url ?? "",
-					url: r.url ?? "",
-					snippet: (r.description ?? "").replace(/\n/g, " ").slice(0, 500),
-				}));
-		},
-	};
-}
-
 /** Invalid JSON must not echo provider response bodies into tool results. */
 async function searchJson(response: Response, label: string): Promise<unknown> {
 	try {
@@ -117,101 +111,7 @@ async function searchJson(response: Response, label: string): Promise<unknown> {
 	}
 }
 
-/** Exa's Search API returns highlights when requested. Its result snippets
- * are normalized to the same bounded, provider-neutral shape as the other
- * adapters. Do not expose error bodies, which may contain credentials. */
-export function exaProvider(apiKey: string, fetchFn: FetchLike = fetch): SearchProvider {
-	return {
-		id: "exa",
-		async search(query: string, count: number): Promise<SearchHit[]> {
-			const resp = await fetchFn("https://api.exa.ai/search", {
-				method: "POST",
-				headers: { "content-type": "application/json", "x-api-key": apiKey },
-				body: JSON.stringify({ query, type: "auto", numResults: Math.min(100, Math.max(1, Math.floor(count))), contents: { highlights: true } }),
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (!resp.ok) throw new Error(`Exa search API ${resp.status}`);
-			const data = await searchJson(resp, "Exa");
-			if (!data || typeof data !== "object" || !Array.isArray((data as { results?: unknown }).results)) {
-				throw new Error("Exa search API returned an invalid response");
-			}
-			return (data as { results: unknown[] }).results.flatMap((result): SearchHit[] => {
-				if (!result || typeof result !== "object") return [];
-				const row = result as { title?: unknown; url?: unknown; highlights?: unknown; text?: unknown };
-				if (typeof row.url !== "string" || !row.url.trim()) return [];
-				try {
-					const protocol = new URL(row.url).protocol;
-					if (protocol !== "http:" && protocol !== "https:") return [];
-				} catch { return []; }
-				const highlights = Array.isArray(row.highlights) ? row.highlights.filter((v): v is string => typeof v === "string").join(" ") : "";
-				const snippet = highlights || (typeof row.text === "string" ? row.text : "");
-				return [{ title: typeof row.title === "string" && row.title ? row.title : row.url, url: row.url, snippet: snippet.replace(/\s+/g, " ").trim().slice(0, 500) }];
-			});
-		},
-	};
-}
-
-/** Firecrawl's v2 search API: no scrapeOptions, so web_fetch still owns
- *  page bodies. Wire shape checked against the official 2026-11-03 snapshot;
- *  live account access and pricing are not inferred from configuration. */
-export function firecrawlProvider(apiKey: string, fetchFn: FetchLike = fetch): SearchProvider {
-	return {
-		id: "firecrawl",
-		async search(query: string, count: number): Promise<SearchHit[]> {
-			const resp = await fetchFn("https://api.firecrawl.dev/v2/search", {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					authorization: `Bearer ${apiKey}`,
-				},
-				body: JSON.stringify({ query, limit: Math.min(100, Math.max(1, Math.floor(count))) }),
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (!resp.ok) throw new Error(`Firecrawl search API ${resp.status}`);
-			const data = await searchJson(resp, "Firecrawl");
-			if (!data || typeof data !== "object" || (data as { success?: unknown }).success !== true) {
-				throw new Error("Firecrawl search API returned an invalid response");
-			}
-			const payload = (data as { data?: unknown }).data;
-			if (!payload || typeof payload !== "object" || !Array.isArray((payload as { web?: unknown }).web)) {
-				throw new Error("Firecrawl search API returned an invalid response");
-			}
-			return (payload as { web: unknown[] }).web.flatMap((result): SearchHit[] => {
-				if (!result || typeof result !== "object") return [];
-				const row = result as { title?: unknown; url?: unknown; description?: unknown };
-				return searchHit(row.title, row.url, row.description);
-			});
-		},
-	};
-}
-
-/** Hosted search only, adapted from chiranjivsethi's PR #81 (a216fa8).
- *  No local model URL, model registration, or provider-backed page fetch. */
-export function ollamaProvider(apiKey: string, fetchFn: FetchLike = fetch): SearchProvider {
-	return {
-		id: "ollama",
-		async search(query: string, count: number): Promise<SearchHit[]> {
-			const resp = await fetchFn("https://ollama.com/api/web_search", {
-				method: "POST",
-				headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-				body: JSON.stringify({ query, max_results: Math.min(10, Math.max(1, Math.floor(count))) }),
-				signal: AbortSignal.timeout(30_000),
-			});
-			if (!resp.ok) throw new Error(`Ollama search API ${resp.status}`);
-			const data = await searchJson(resp, "Ollama");
-			if (!data || typeof data !== "object" || !Array.isArray((data as { results?: unknown }).results)) {
-				throw new Error("Ollama search API returned an invalid response");
-			}
-			return (data as { results: unknown[] }).results.flatMap((result): SearchHit[] => {
-				if (!result || typeof result !== "object") return [];
-				const row = result as { title?: unknown; url?: unknown; content?: unknown };
-				return searchHit(row.title, row.url, row.content);
-			});
-		},
-	};
-}
-
-/** Match Exa's bounded result contract for the other new adapters. */
+/** Normalize a gateway result to the app's bounded search-hit contract. */
 function searchHit(title: unknown, url: unknown, snippet: unknown): SearchHit[] {
 	if (typeof url !== "string" || !url.trim()) return [];
 	try {
@@ -257,7 +157,7 @@ export function resolveSearchEngineFor(
 			return {
 				available: false,
 				engine: null,
-				reason: `search engine is set to "${pinned}" but its API key is missing — set the ${SEARCH_ENGINES.find((e) => e.id === pinned)?.envVar} key`,
+		reason: `search engine is set to "${pinned}" but its connection is missing — configure ${SEARCH_ENGINES.find((e) => e.id === pinned)?.envVar}`,
 				key: null,
 			};
 		}
@@ -270,7 +170,7 @@ export function resolveSearchEngineFor(
 	return {
 		available: false,
 		engine: null,
-		reason: "no search engine configured — set a Tavily, Brave, Exa, Firecrawl, or Ollama search API key",
+		reason: "no search engine configured — configure SearchAPI or set a Tavily search API key",
 		key: null,
 	};
 }
@@ -298,16 +198,10 @@ export function searchProvider(): SearchProvider | null {
 	const resolved = resolveSearchEngineFor(effectiveSettings().agent.search?.engine, engineKeys());
 	if (!resolved.available || !resolved.key) return null;
 	switch (resolved.engine) {
+		case "searchapi":
+			return searchApiProvider(resolved.key);
 		case "tavily":
 			return tavilyProvider(resolved.key);
-		case "brave":
-			return braveProvider(resolved.key);
-		case "exa":
-			return exaProvider(resolved.key);
-		case "firecrawl":
-			return firecrawlProvider(resolved.key);
-		case "ollama":
-			return ollamaProvider(resolved.key);
 		default:
 			return null;
 	}

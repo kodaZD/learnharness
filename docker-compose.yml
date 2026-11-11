@@ -1,0 +1,27 @@
+services:
+  learnharness:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LEARNHARNESS_PORT:-3001}:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      LH_DATA_DIR: /var/lib/learnharness/data
+      LH_AUTH_FILE: /var/lib/learnharness/auth.json
+      CUSTOM_OPENAI_API_KEY: ${SUNSILK_API_KEY:?Set SUNSILK_API_KEY in .env}
+      SEARCH_API_BEARER_TOKEN: ${SEARCH_API_BEARER_TOKEN:?Set SEARCH_API_BEARER_TOKEN in .env}
+      SEARCHAPI_ENDPOINT: http://searchapi:8000
+    volumes:
+      - /srv/learnharness/app-data:/var/lib/learnharness
+      - /srv/learnharness/human-knowledge-base:/knowledge:ro
+    networks:
+      - default
+      - hahuy-site-net
+
+networks:
+  hahuy-site-net:
+    external: true

@@ -51,7 +51,9 @@ Nonsecret settings are deltas in `<data root>/settings.json`; absent values reso
 | `LH_DATA_DIR` | Mutable chats/jobs/graph/settings/prompts; default repo `data/`. |
 | `LH_AUTH_FILE` | Keys/custom-endpoint binding; default repo-root `auth.json`, outside `data/`. |
 | Provider API-key variables | Optional, selected-provider dependent; UI names are in `src/core/auth-keys.ts`. |
-| `TAVILY_API_KEY`, `BRAVE_API_KEY`, `EXA_API_KEY`, `FIRECRAWL_API_KEY`, `OLLAMA_API_KEY` | Optional search adapters. Without a Settings pin, the first keyed engine wins: Tavily → Brave → Exa → Firecrawl → Ollama. A pinned engine requires its own key; no silent fallback. Ollama search is hosted at ollama.com, not a local model server. Page fetching is independent; research can fetch known URLs without a search key. |
+| `SEARCH_API_BEARER_TOKEN` | Required for the default SearchAPI gateway when running the Docker deployment. The token is deployment-only: it is not shown in Settings → Keys or stored in `auth.json`. |
+| `SEARCHAPI_ENDPOINT` | SearchAPI base URL; Docker uses `http://searchapi:8000`, while standalone development can use the hosted gateway URL. |
+| `TAVILY_API_KEY` | Optional direct Tavily fallback. Automatic prefers SearchAPI, then Tavily; a pinned engine never silently falls back. Page fetching is independent; research can fetch known URLs without a search key. |
 | `DEEPGRAM_API_KEY` | Optional dictation token minting. |
 | `CHROME_PATH` | Chrome/Chromium executable fallback for demo verification; Electron's browser helper is primary. No extra Chromium is downloaded. |
 | `LH_ALLOWED_HOSTS` | Browser-only mode: extra host names the API accepts besides `localhost` and IP addresses. Comma-separated, case-insensitive, port ignored, no wildcards. |

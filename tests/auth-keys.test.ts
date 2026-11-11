@@ -15,7 +15,7 @@ describe("the catalog", () => {
 	it("lists the curated app-service keys (provider keys live in the provider table)", () => {
 		assert.deepEqual(
 			AUTH_KEYS.map((k) => k.id),
-			["DEEPGRAM_API_KEY", "TAVILY_API_KEY", "BRAVE_API_KEY", "EXA_API_KEY", "FIRECRAWL_API_KEY", "OLLAMA_API_KEY"],
+			["DEEPGRAM_API_KEY", "TAVILY_API_KEY"],
 		);
 		for (const k of AUTH_KEYS) {
 			assert.ok(k.label.length > 0, `${k.id} has a label`);
@@ -33,10 +33,6 @@ describe("the catalog", () => {
 	it("isKnownAuthKey: catalog yes, everything else no", () => {
 		assert.ok(isKnownAuthKey("DEEPGRAM_API_KEY"));
 		assert.ok(isKnownAuthKey("TAVILY_API_KEY"));
-		assert.ok(isKnownAuthKey("BRAVE_API_KEY"));
-		assert.ok(isKnownAuthKey("EXA_API_KEY"));
-		assert.ok(isKnownAuthKey("FIRECRAWL_API_KEY"));
-		assert.ok(isKnownAuthKey("OLLAMA_API_KEY"));
 		assert.ok(!isKnownAuthKey("OPENROUTER_API_KEY"));
 		assert.ok(!isKnownAuthKey("OPENAI_API_KEY"), "provider vars are a separate surface");
 		assert.ok(!isKnownAuthKey("FUTURE_PLANS_TOKEN"));
@@ -52,37 +48,10 @@ describe("validateKeyShape (the 400 gate — curated keys)", () => {
 		assert.ok(!validateKeyShape("TAVILY_API_KEY", "  ").ok, "empty fails");
 	});
 
-	it("Firecrawl: fc- prefix required, length floor past it", () => {
-		assert.ok(validateKeyShape("FIRECRAWL_API_KEY", "fc-0123456789abcdef0123456789abcdef").ok);
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "tvly-abc123def456ghi78").ok, "wrong family");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "fc-").ok, "prefix alone is a truncation");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "fc-0123456789 abcdef0123").ok, "whitespace fails");
-		assert.ok(!validateKeyShape("FIRECRAWL_API_KEY", "  ").ok, "empty fails");
-	});
-
-	it("Brave: no public format — a ≥20-char truncation guard, no whitespace", () => {
-		assert.ok(validateKeyShape("BRAVE_API_KEY", "b".repeat(40)).ok);
-		assert.ok(!validateKeyShape("BRAVE_API_KEY", "b".repeat(19)).ok, "truncated paste");
-		assert.ok(!validateKeyShape("BRAVE_API_KEY", "has whitespace here").ok);
-	});
-
 	it("Deepgram: no public format — a ≥20-char truncation guard, no whitespace", () => {
 		assert.ok(validateKeyShape("DEEPGRAM_API_KEY", "a".repeat(40)).ok);
 		assert.ok(!validateKeyShape("DEEPGRAM_API_KEY", "a".repeat(19)).ok, "truncated paste");
 		assert.ok(!validateKeyShape("DEEPGRAM_API_KEY", "a b c d e f g h i j k l m n o p q r s").ok, "whitespace");
-	});
-
-	it("Exa: accepts whitespace-free keys without assuming a prefix", () => {
-		assert.ok(validateKeyShape("EXA_API_KEY", "exa-test-12345678").ok);
-		assert.ok(!validateKeyShape("EXA_API_KEY", "short").ok);
-		assert.ok(!validateKeyShape("EXA_API_KEY", "exa key with spaces").ok);
-	});
-
-	it("Ollama hosted search: ordinary key paste hygiene, not a model URL", () => {
-		assert.ok(validateKeyShape("OLLAMA_API_KEY", "  ollama-fake-key-123456  ").ok);
-		assert.ok(!validateKeyShape("OLLAMA_API_KEY", "short").ok);
-		assert.ok(!validateKeyShape("OLLAMA_API_KEY", "ollama fake key 123456").ok);
-		assert.ok(!isKnownAuthKey("OLLAMA_BASE_URL"));
 	});
 
 	it("trims surrounding paste whitespace before checking", () => {

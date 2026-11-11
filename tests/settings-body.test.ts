@@ -80,19 +80,16 @@ describe("parseAgentSettingsBody", () => {
 		// cross-validation — the parser only sees shapes.
 	});
 
-	it("search: recognizes Exa, Firecrawl, and Ollama and rejects unknown engines", () => {
+	it("search: recognizes SearchAPI and Tavily and rejects unknown engines", () => {
+		const gateway = parseAgentSettingsBody({ search: { engine: "searchapi" } });
+		assert.ok(gateway.ok);
+		assert.deepEqual(gateway.settings.search, { engine: "searchapi" });
 		const ok = parseAgentSettingsBody({ search: { engine: "tavily" } });
 		assert.ok(ok.ok);
 		assert.deepEqual(ok.settings.search, { engine: "tavily" });
-		const exa = parseAgentSettingsBody({ search: { engine: "exa" } });
-		assert.ok(exa.ok);
-		assert.deepEqual(exa.settings.search, { engine: "exa" });
-		const fc = parseAgentSettingsBody({ search: { engine: "firecrawl" } });
-		assert.ok(fc.ok);
-		assert.deepEqual(fc.settings.search, { engine: "firecrawl" });
-		const ollama = parseAgentSettingsBody({ search: { engine: "ollama" } });
-		assert.ok(ollama.ok);
-		assert.deepEqual(ollama.settings.search, { engine: "ollama" });
+		assert.equal(parseAgentSettingsBody({ search: { engine: "exa" } }).ok, false);
+		assert.equal(parseAgentSettingsBody({ search: { engine: "firecrawl" } }).ok, false);
+		assert.equal(parseAgentSettingsBody({ search: { engine: "ollama" } }).ok, false);
 		assert.equal(parseAgentSettingsBody({ search: { engine: "deepseek" } }).ok, false);
 		assert.equal(parseAgentSettingsBody({ search: { engine: "chatgpt" } }).ok, false);
 		const clear = parseAgentSettingsBody({ search: {} });

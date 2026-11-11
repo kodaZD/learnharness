@@ -950,7 +950,7 @@ export function AgentSection({
 				})()}
 				{(() => {
 					const engine = agent?.search?.engine ?? null;
-					const anyKey = SEARCH_ENGINES.some(({ id }) => engineKeys[id] === true);
+					const anyKey = search?.available === true || SEARCH_ENGINES.some(({ id }) => engineKeys[id] === true);
 					const open = openMenu?.target === "search";
 					return (
 						<SettingsRow

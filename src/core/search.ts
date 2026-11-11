@@ -6,9 +6,8 @@
  * store (the curated key catalog), and the server composes the live adapter.
  *
  * Owner decisions baked here:
- *  - NO default engine in the factory record: an engine is live iff its
- *    key is present. With a key, the engine auto-activates (the user never
- *    chooses an engine to make search work — setting the key is enough);
+ *  - SearchAPI is the default gateway when its environment token is present;
+ *    Tavily remains available as the direct-provider alternative.
  *    agent.search.engine is only an explicit preference.
  *  - Nothing silently falls back: no engine live = search is honestly
  *    unavailable (the tool says so). Research remains available keylessly
@@ -30,11 +29,8 @@ export interface SearchHit {
 /** Search engines in automatic preference order. Keep existing preferences
  * stable when adding an engine: an explicit pin always wins. */
 export const SEARCH_ENGINES = [
+	{ id: "searchapi", label: "SearchAPI", envVar: "SEARCH_API_BEARER_TOKEN" },
 	{ id: "tavily", label: "Tavily", envVar: "TAVILY_API_KEY" },
-	{ id: "brave", label: "Brave", envVar: "BRAVE_API_KEY" },
-	{ id: "exa", label: "Exa", envVar: "EXA_API_KEY" },
-	{ id: "firecrawl", label: "Firecrawl", envVar: "FIRECRAWL_API_KEY" },
-	{ id: "ollama", label: "Ollama", envVar: "OLLAMA_API_KEY" },
 ] as const;
 
 export type SearchEngineId = (typeof SEARCH_ENGINES)[number]["id"];

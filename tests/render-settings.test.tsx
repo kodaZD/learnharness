@@ -220,18 +220,10 @@ describe("AgentSection (thin SSR)", () => {
 			<AgentSection agent={{ search: { engine: "tavily" } }} models={undefined} graph={undefined} onSectionChange={() => true} onModelsChange={() => {}} />,
 		);
 		assert.ok(html2.includes("Tavily"), "pinned engine visible in the trigger");
-		const exa = renderToStaticMarkup(
-			<AgentSection agent={{ search: { engine: "exa" } }} models={undefined} graph={undefined} onSectionChange={() => {}} onModelsChange={() => {}} />,
+		const searchapi = renderToStaticMarkup(
+			<AgentSection agent={{ search: { engine: "searchapi" } }} models={undefined} graph={undefined} onSectionChange={() => {}} onModelsChange={() => {}} />,
 		);
-		assert.ok(exa.includes("Exa"), "an Exa pin retains its label in the trigger");
-		const html3 = renderToStaticMarkup(
-			<AgentSection agent={{ search: { engine: "firecrawl" } }} models={undefined} graph={undefined} onSectionChange={() => {}} onModelsChange={() => {}} />,
-		);
-		assert.ok(html3.includes("Firecrawl"), "a Firecrawl pin reads by its label");
-		const ollama = renderToStaticMarkup(
-			<AgentSection agent={{ search: { engine: "ollama" } }} models={undefined} graph={undefined} onSectionChange={() => {}} onModelsChange={() => {}} />,
-		);
-		assert.ok(ollama.includes("Ollama"), "an Ollama pin reads by its label");
+		assert.ok(searchapi.includes("SearchAPI"), "a SearchAPI pin retains its label in the trigger");
 	});
 
 	it("the prober graph-tools row: FIRST in the Tools group, default ON, its own key (wave 7)", () => {

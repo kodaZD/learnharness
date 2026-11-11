@@ -170,7 +170,7 @@ describe("agent section compose helpers — the replace-whole PUT body", () => {
 		const before: AgentSettings = {
 			workerRequestConcurrency: 3,
 			models: { auditor: { thinkingLevel: "high" } }, tools: { research: false },
-			prompts: { "system-prompt.md": true }, search: { engine: "brave" }, graphTools: { enabled: false },
+			prompts: { "system-prompt.md": true }, search: { engine: "tavily" }, graphTools: { enabled: false },
 		};
 		for (const [draft, value] of [["1", 1], ["8", 8], ["8.0", 8], ["1e1", 10], ["10e-1", 1], ["10.5e1", 105], ["100000", 100000], [String(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER]] as const) {
 			const next = composeWorkerRequestConcurrency(before, draft);
@@ -243,7 +243,7 @@ describe("agent section compose helpers — the replace-whole PUT body", () => {
 	});
 
 	it("composeSearchEngine: the explicit preference writes agent.search.engine", () => {
-		assert.deepEqual(composeSearchEngine(undefined, "brave").search, { engine: "brave" });
+		assert.deepEqual(composeSearchEngine(undefined, "tavily").search, { engine: "tavily" });
 	});
 
 	it("composePromptSwitch: on = explicit true, off = key REMOVED (absent = off)", () => {
@@ -303,10 +303,6 @@ describe("classifyKeys — the Keys section's two-group projection", () => {
 		assert.deepEqual(out.toolRows.map((r) => r.id), [
 			"DEEPGRAM_API_KEY",
 			"TAVILY_API_KEY",
-			"BRAVE_API_KEY",
-			"EXA_API_KEY",
-			"FIRECRAWL_API_KEY",
-			"OLLAMA_API_KEY",
 		]);
 		assert.ok(out.toolRows[0]!.present);
 		assert.ok(!out.toolRows[1]!.present);
